@@ -1,16 +1,17 @@
+import os
 import requests
 from datetime import datetime, timedelta
 import time
 import math
 import schedule
 
-# === CONFIG ===
-FINNHUB_API_KEY = 'YOUR_FINNHUB_API_KEY'  # Your Finnhub API key
-BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'    # Your Telegram bot token
-CHAT_ID = 'YOUR_TELEGRAM_CHAT_ID'                                           # Your Telegram chat ID
+# === ENV VARIABLES ===
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
-# === Nifty 200 Symbols (Full List) ===
-nifty_200_symbols = [
+# === NIFTY 200 SYMBOLS ===
+nifty_200_symbols = nifty_200_symbols = [
     "3MINDIA.NS", "AARTIIND.NS", "ABB.NS", "ACC.NS", "ADANIENT.NS", "ADANIGREEN.NS", "ADANIPORTS.NS", "ADANIPOWER.NS",
     "ALKEM.NS", "AMBUJACEM.NS", "APOLLOHOSP.NS", "APOLLOTYRE.NS", "ASHOKLEY.NS", "ASIANPAINT.NS", "ASTRAL.NS", "AUROPHARMA.NS",
     "AVANTIFEED.NS", "AXISBANK.NS", "BAJAJ-AUTO.NS", "BAJAJFINSV.NS", "BAJFINANCE.NS", "BALKRISIND.NS", "BANDHANBNK.NS",
@@ -36,13 +37,12 @@ nifty_200_symbols = [
     "ZYDUSLIFE.NS"
 ]
 
-
-# === Get Date Range ===
+# === Date Utilities ===
 def get_date_strings():
     today = datetime.now().date()
     return str(today - timedelta(days=1)), str(today)
 
-# === Telegram Function ===
+# === Telegram Send Function ===
 def send_to_telegram(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {
@@ -78,14 +78,13 @@ def fetch_and_send_news(symbol, from_str, to_str):
                 dt = datetime.fromtimestamp(item['datetime']).strftime('%d %b %Y %I:%M %p')
                 msg += f"📰 <b>{item['headline']}</b>\n🕒 {dt}\n🔗 <a href='{item['url']}'>Read More</a>\n\n"
             send_to_telegram(msg)
-            time.sleep(1.2)  # Delay to avoid Telegram spam
+            time.sleep(1.2)
         else:
             print(f"⚠️ No news found for {symbol}")
-
     except Exception as e:
         print(f"❌ Error fetching news for {symbol}: {e}")
 
-# === Main Function with Batching ===
+# === Scheduled Job ===
 def run_news_job():
     from_str, to_str = get_date_strings()
     batch_size = 50
@@ -95,31 +94,5 @@ def run_news_job():
         start = batch * batch_size
         end = min((batch + 1) * batch_size, len(nifty_200_symbols))
         current_batch = nifty_200_symbols[start:end]
-
-        print(f"\n🚀 Batch {batch+1}/{total_batches} | Symbols {start + 1} to {end}")
-
-        for symbol in current_batch:
-            fetch_and_send_news(symbol, from_str, to_str)
-
-        if batch < total_batches - 1:
-            print("⏸️ Waiting 60 seconds before next batch...")
-            time.sleep(60)
-
-# === Schedule Every 10 Minutes ===
-schedule.every(10).minutes.do(run_news_job)
-
-print("✅ Bot is running and will send news every 10 minutes...\n⏳ First run now...\n")
-run_news_job()  # Initial run
-
-while True:
-    schedule.run_pending()
-    time.sleep(10)
-
-
-
-print("✅ Bot is running and will send news every hour...\n⏳ First run now...\n")
-run_news_job()  # Initial run
-
-while True:
-    schedule.run_pending()
-    time.sleep(10)
+        print(f"\n🚀 Batch {batch+1}/{total_batches} | Symbols {start+1} to {end}")
+        for symbol
