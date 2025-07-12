@@ -90,9 +90,16 @@ def run_news_job():
     batch_size = 50
     total_batches = math.ceil(len(nifty_200_symbols) / batch_size)
 
-    for batch in range(total_batches):
-        start = batch * batch_size
-        end = min((batch + 1) * batch_size, len(nifty_200_symbols))
-        current_batch = nifty_200_symbols[start:end]
-        print(f"\n🚀 Batch {batch+1}/{total_batches} | Symbols {start+1} to {end}")
-        for symbol
+for batch in range(total_batches):
+    start = batch * batch_size
+    end = min((batch + 1) * batch_size, len(nifty_200_symbols))
+    current_batch = nifty_200_symbols[start:end]
+    print(f"\n🚀 Batch {batch+1}/{total_batches} | Symbols {start+1} to {end}")
+
+    for symbol in current_batch:
+        fetch_and_send_news(symbol, from_str, to_str)
+
+    if batch < total_batches - 1:
+        print("⏸️ Waiting 60 seconds before next batch...")
+        time.sleep(60)
+l
