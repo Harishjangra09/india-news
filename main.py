@@ -5,9 +5,9 @@ import math
 import schedule
 
 # === CONFIG ===
-FINNHUB_API_KEY = 'd1p9r3hr01qu436deqb0d1p9r3hr01qu436deqbg'  # Your Finnhub API key
-BOT_TOKEN = '8048752290:AAFwOUC8ghJp4c4E6tOcyslz10TbrK27q_w'    # Your Telegram bot token
-CHAT_ID = '897358644'                                           # Your Telegram chat ID
+FINNHUB_API_KEY = 'YOUR_FINNHUB_API_KEY'  # Your Finnhub API key
+BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'    # Your Telegram bot token
+CHAT_ID = 'YOUR_TELEGRAM_CHAT_ID'                                           # Your Telegram chat ID
 
 # === Nifty 200 Symbols (Full List) ===
 nifty_200_symbols = [
