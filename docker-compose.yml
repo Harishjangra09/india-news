@@ -1,0 +1,16 @@
+FROM python:3.10-slim
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the app code
+COPY . .
+
+# Set environment variables from .env
+# (we'll pass them in during container run OR use docker-compose)
+
+CMD ["python", "main.py"]
