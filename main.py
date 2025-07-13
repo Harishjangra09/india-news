@@ -73,27 +73,36 @@ def fetch_news(category="general"):
             print("❌ Finnhub error:", data)
             return []
 
-        return data[:5]  # Limit to latest 5 articles
+        return data[:10]  # Fetch latest 10 articles
     except Exception as e:
         print(f"❌ Error fetching news: {e}")
         return []
+
+# === Filter keywords for India Finance/Stock Market ===
+keywords = [
+    "india", "indian", "nifty", "sensex", "bse", "nse",
+    "rbi", "sebi", "stock market", "finance", "economy", "mutual fund"
+]
+
+def contains_keywords(text):
+    return any(kw in text.lower() for kw in keywords)
 
 # === Send News to a User ===
 def send_news(chat_id, category="general"):
     global sent_urls
     articles = fetch_news(category)
 
-    # Filter for India-related news
-    india_articles = [a for a in articles if (
-        "india" in a.get("headline", "").lower() or 
-        "india" in a.get("summary", "").lower()
+    # Filter for India finance & stock market news
+    filtered_articles = [a for a in articles if (
+        contains_keywords(a.get("headline", "")) or 
+        contains_keywords(a.get("summary", ""))
     ) and a.get("url") not in sent_urls]
 
-    if not india_articles:
-        print(f"ℹ️ No new India-related articles for {chat_id}")
+    if not filtered_articles:
+        print(f"ℹ️ No new India finance news for {chat_id}")
         return
 
-    for article in india_articles:
+    for article in filtered_articles:
         url = article.get("url")
         if not url:
             continue
@@ -116,34 +125,20 @@ def send_news(chat_id, category="general"):
         save_sent_urls(sent_urls)
         time.sleep(1)
 
-
 # === Telegram Commands ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_chat.id
     if user_id not in subscribed_users:
         subscribed_users.add(user_id)
         save_subscribers(subscribed_users)
-        await context.bot.send_message(chat_id=user_id, text="✅ Subscribed to daily general news!")
+        await context.bot.send_message(chat_id=user_id, text="✅ Subscribed to India Finance News!")
     else:
         await context.bot.send_message(chat_id=user_id, text="✅ You're already subscribed.")
     send_news(user_id)
 
-# === Optional categories ===
-async def category_command(update: Update, context: ContextTypes.DEFAULT_TYPE, category):
-    chat_id = update.effective_chat.id
-    send_news(chat_id, category)
-
+# === Optional Commands (manual category triggers if needed) ===
 async def india(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await category_command(update, context, "general")
-
-async def business(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await category_command(update, context, "business")
-
-async def tech(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await category_command(update, context, "technology")
-
-async def health(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await category_command(update, context, "healthcare")
+    await start(update, context)
 
 # === Scheduled News ===
 def run_news_job():
@@ -166,16 +161,14 @@ def main():
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("india", india))
-    app.add_handler(CommandHandler("business", business))
-    app.add_handler(CommandHandler("tech", tech))
-    app.add_handler(CommandHandler("health", health))
+    app.add_handler(CommandHandler("india", india))  # Optional
 
+    # Start scheduler in background thread
     thread = threading.Thread(target=schedule_runner)
     thread.daemon = True
     thread.start()
 
-    print("✅ General News Bot started.")
+    print("✅ India Finance News Bot started.")
     app.run_polling()
 
 if __name__ == "__main__":
