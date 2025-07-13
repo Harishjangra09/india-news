@@ -10,6 +10,9 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from dotenv import load_dotenv
 load_dotenv()
 
+sent_urls = set()  # Global set to store sent article URLs
+
+
 # === ENV VARIABLES ===
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 NEWSAPI_KEY = os.getenv("NEWSAPI_KEY")
@@ -67,18 +70,29 @@ def fetch_news(query="general"):
 
 
 # === Send News to User ===
-def send_news(chat_id, query="general"):
-    articles = fetch_news(query)
+def send_news(chat_id, query, lang="en"):
+    articles = fetch_news(query, lang)
     if not articles:
         send_to_telegram("⚠️ No fresh news available right now.", chat_id)
         return
 
-    for article in articles:
-        title = article.get("headline", "No Title")
-        source = article.get("source", "")
-        published = datetime.fromtimestamp(article.get("datetime", 0)).strftime("%d %b %Y %I:%M %p")
-        description = article.get("summary", "No summary available.")
-        url = article.get("url", "#")
+    new_articles = [a for a in articles if a.get("url") not in sent_urls]
+
+    if not new_articles:
+        print("ℹ️ No new articles to send.")
+        return
+
+    for article in new_articles:
+        url = article.get("url")
+        if not url:
+            continue
+
+        sent_urls.add(url)  # Mark as sent
+
+        title = article.get("title", "No Title")
+        source = article.get("source", {}).get("name", "")
+        published = article.get("publishedAt", "")[:10]
+        description = article.get("description", "No summary available.")
 
         message = (
             f"<b>{title}</b>\n"
@@ -89,6 +103,7 @@ def send_news(chat_id, query="general"):
 
         send_to_telegram(message, chat_id)
         time.sleep(1)
+
 
 
 # === Telegram Command Handlers ===
@@ -135,14 +150,12 @@ def run_news_job():
         time.sleep(1)
 
 def schedule_runner():
-    run_news_job()  # First time
-    schedule.every(10).minutes.do(run_news_job)  # Repeat every 10 minutes
+    run_news_job()  # Run once immediately
+    schedule.every(10).minutes.do(run_news_job)  # Run every 10 minutes
     while True:
-        try:
-            schedule.run_pending()
-        except Exception as e:
-            print(f"❌ Scheduler error: {e}")
-        time.sleep(60)
+        schedule.run_pending()
+        time.sleep(10)
+
 
 # === Bot Main Function ===
 def main():
