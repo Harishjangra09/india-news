@@ -48,9 +48,9 @@ def send_to_telegram(text, chat_id):
         print(f"❌ Telegram exception: {e}")
 
 # === News Fetching ===
-def fetch_news(query=None, lang="en"):
+def fetch_news(query="general"):
     try:
-        url = f"https://finnhub.io/api/v1/news?category=general&token={NEWSAPI_KEY}"
+        url = f"https://finnhub.io/api/v1/news?category={query}&token={NEWSAPI_KEY}"
         res = requests.get(url)
         data = res.json()
 
@@ -58,26 +58,27 @@ def fetch_news(query=None, lang="en"):
             print("❌ Finnhub error:", data)
             return []
 
-        return data[:5]  # return top 5 news
+        return data[:5]
 
     except Exception as e:
         print(f"❌ Error fetching news: {e}")
         return []
 
 
+
 # === Send News to User ===
-def send_news(chat_id, query, lang="en"):
-    articles = fetch_news(query, lang)
+def send_news(chat_id, query="general"):
+    articles = fetch_news(query)
     if not articles:
         send_to_telegram("⚠️ No fresh news available right now.", chat_id)
         return
 
     for article in articles:
-        title = article.get("title", "No Title")
-        source = article.get("source", {}).get("name", "")
-        published = article.get("publishedAt", "")[:10]
-        description = article.get("description", "No summary available.")
-        url = article.get("url")
+        title = article.get("headline", "No Title")
+        source = article.get("source", "")
+        published = datetime.fromtimestamp(article.get("datetime", 0)).strftime("%d %b %Y %I:%M %p")
+        description = article.get("summary", "No summary available.")
+        url = article.get("url", "#")
 
         message = (
             f"<b>{title}</b>\n"
@@ -88,6 +89,7 @@ def send_news(chat_id, query, lang="en"):
 
         send_to_telegram(message, chat_id)
         time.sleep(1)
+
 
 # === Telegram Command Handlers ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
