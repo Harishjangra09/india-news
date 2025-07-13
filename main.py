@@ -4,7 +4,7 @@ import requests
 import time
 import schedule
 import threading
-from datetime import datetime
+from datetime import timezone
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from dotenv import load_dotenv
@@ -110,7 +110,7 @@ def send_news(chat_id, category="general"):
         title = article.get("headline", "No Title")
         source = article.get("source", "Unknown")
         published_ts = article.get("datetime", 0)
-        published = datetime.utcfromtimestamp(published_ts).strftime('%d %b %Y %I:%M %p')
+        published = datetime.fromtimestamp(published_ts, tz=timezone.utc).strftime('%d %b %Y %I:%M %p')
         description = article.get("summary", "No summary available.")
 
         message = (
