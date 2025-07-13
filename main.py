@@ -162,7 +162,7 @@ def schedule_runner():
 # === Main Bot Init ===
 def main():
     if not BOT_TOKEN or not NEWSAPI_KEY:
-        raise ValueError("Missing BOT_TOKEN or NEWSAPI_KEY")
+        raise ValueError("Missing BOT_TOKEN or FINNEWSAPI_KEY")
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
