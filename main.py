@@ -129,16 +129,20 @@ async def hindi(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # === Background Job to Send News to All Subscribers ===
 def run_news_job():
-    for user_id in subscribed_users:
-        print(f"🚀 Sending scheduled news to {user_id}")
+    for user_id in subscribed_users:  # Or replace with Redis logic if used
+        print(f"🚀 Sending fresh news to {user_id}")
         send_news(user_id, "India OR World OR Breaking News")
         time.sleep(1)
 
 def schedule_runner():
-    schedule.every(2).hours.do(run_news_job)
+    run_news_job()  # First time
+    schedule.every(10).minutes.do(run_news_job)  # Repeat every 10 minutes
     while True:
-        schedule.run_pending()
-        time.sleep(10)
+        try:
+            schedule.run_pending()
+        except Exception as e:
+            print(f"❌ Scheduler error: {e}")
+        time.sleep(60)
 
 # === Bot Main Function ===
 def main():
