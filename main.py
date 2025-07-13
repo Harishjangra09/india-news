@@ -12,7 +12,7 @@ load_dotenv()
 
 # === ENV VARIABLES ===
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-NEWSAPI_KEY = os.getenv("NEWSAPI_KEY")
+FINNEWSAPI_KEY = os.getenv("FINNEWSAPI_KEY")
 
 # === File Paths ===
 SUBSCRIBERS_FILE = "subscribers.json"
@@ -65,7 +65,7 @@ def send_to_telegram(text, chat_id):
 # === Fetch News from Finnhub ===
 def fetch_news(category="general"):
     try:
-        url = f"https://finnhub.io/api/v1/news?category={category}&token={NEWSAPI_KEY}"
+        url = f"https://finnhub.io/api/v1/news?category={category}&token={FINNEWSAPI_KEY}"
         res = requests.get(url)
         data = res.json()
 
