@@ -82,13 +82,18 @@ def fetch_news(category="general"):
 def send_news(chat_id, category="general"):
     global sent_urls
     articles = fetch_news(category)
-    new_articles = [a for a in articles if a.get("url") not in sent_urls]
 
-    if not new_articles:
-        print(f"ℹ️ No new articles for {chat_id}")
+    # Filter for India-related news
+    india_articles = [a for a in articles if (
+        "india" in a.get("headline", "").lower() or 
+        "india" in a.get("summary", "").lower()
+    ) and a.get("url") not in sent_urls]
+
+    if not india_articles:
+        print(f"ℹ️ No new India-related articles for {chat_id}")
         return
 
-    for article in new_articles:
+    for article in india_articles:
         url = article.get("url")
         if not url:
             continue
@@ -110,6 +115,7 @@ def send_news(chat_id, category="general"):
         sent_urls.add(url)
         save_sent_urls(sent_urls)
         time.sleep(1)
+
 
 # === Telegram Commands ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
