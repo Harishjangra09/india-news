@@ -4,23 +4,21 @@ import requests
 import time
 import schedule
 import threading
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from dotenv import load_dotenv
 load_dotenv()
 
-sent_urls = set()  # Global set to store sent article URLs
-
-
 # === ENV VARIABLES ===
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 NEWSAPI_KEY = os.getenv("NEWSAPI_KEY")
 
-# === File to Store Subscribers ===
+# === File Paths ===
 SUBSCRIBERS_FILE = "subscribers.json"
+SENT_URLS_FILE = "sent_urls.json"
 
-# === Load & Save Helpers ===
+# === Load Subscribers ===
 def load_subscribers():
     try:
         with open(SUBSCRIBERS_FILE, "r") as f:
@@ -34,7 +32,21 @@ def save_subscribers(subs):
 
 subscribed_users = load_subscribers()
 
-# === Send Telegram Message ===
+# === Load Sent URLs ===
+def load_sent_urls():
+    try:
+        with open(SENT_URLS_FILE, "r") as f:
+            return set(json.load(f))
+    except Exception:
+        return set()
+
+def save_sent_urls(urls):
+    with open(SENT_URLS_FILE, "w") as f:
+        json.dump(list(urls), f)
+
+sent_urls = load_sent_urls()
+
+# === Telegram Send ===
 def send_to_telegram(text, chat_id):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {
@@ -50,10 +62,10 @@ def send_to_telegram(text, chat_id):
     except Exception as e:
         print(f"❌ Telegram exception: {e}")
 
-# === News Fetching ===
-def fetch_news(query="general"):
+# === Fetch News from Finnhub ===
+def fetch_news(category="general"):
     try:
-        url = f"https://finnhub.io/api/v1/news?category={query}&token={NEWSAPI_KEY}"
+        url = f"https://finnhub.io/api/v1/news?category={category}&token={NEWSAPI_KEY}"
         res = requests.get(url)
         data = res.json()
 
@@ -61,25 +73,19 @@ def fetch_news(query="general"):
             print("❌ Finnhub error:", data)
             return []
 
-        return data[:5]
-
+        return data[:5]  # Limit to latest 5 articles
     except Exception as e:
         print(f"❌ Error fetching news: {e}")
         return []
 
-
-
-# === Send News to User ===
-def send_news(chat_id, query, lang="en"):
-    articles = fetch_news(query, lang)
-    if not articles:
-        send_to_telegram("⚠️ No fresh news available right now.", chat_id)
-        return
-
+# === Send News to a User ===
+def send_news(chat_id, category="general"):
+    global sent_urls
+    articles = fetch_news(category)
     new_articles = [a for a in articles if a.get("url") not in sent_urls]
 
     if not new_articles:
-        print("ℹ️ No new articles to send.")
+        print(f"ℹ️ No new articles for {chat_id}")
         return
 
     for article in new_articles:
@@ -87,12 +93,11 @@ def send_news(chat_id, query, lang="en"):
         if not url:
             continue
 
-        sent_urls.add(url)  # Mark as sent
-
-        title = article.get("title", "No Title")
-        source = article.get("source", {}).get("name", "")
-        published = article.get("publishedAt", "")[:10]
-        description = article.get("description", "No summary available.")
+        title = article.get("headline", "No Title")
+        source = article.get("source", "Unknown")
+        published_ts = article.get("datetime", 0)
+        published = datetime.utcfromtimestamp(published_ts).strftime('%d %b %Y %I:%M %p')
+        description = article.get("summary", "No summary available.")
 
         message = (
             f"<b>{title}</b>\n"
@@ -102,62 +107,53 @@ def send_news(chat_id, query, lang="en"):
         )
 
         send_to_telegram(message, chat_id)
+        sent_urls.add(url)
+        save_sent_urls(sent_urls)
         time.sleep(1)
 
-
-
-# === Telegram Command Handlers ===
+# === Telegram Commands ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_chat.id
     if user_id not in subscribed_users:
         subscribed_users.add(user_id)
         save_subscribers(subscribed_users)
         await context.bot.send_message(chat_id=user_id, text="✅ Subscribed to daily general news!")
-        send_news(user_id, "India OR World OR Breaking News")
     else:
         await context.bot.send_message(chat_id=user_id, text="✅ You're already subscribed.")
+    send_news(user_id)
 
-async def send_category(update: Update, context: ContextTypes.DEFAULT_TYPE, query="India", lang="en"):
+# === Optional categories ===
+async def category_command(update: Update, context: ContextTypes.DEFAULT_TYPE, category):
     chat_id = update.effective_chat.id
-    send_news(chat_id, query, lang)
+    send_news(chat_id, category)
 
 async def india(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await send_category(update, context, "India")
-
-async def world(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await send_category(update, context, "World")
-
-async def sports(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await send_category(update, context, "Sports")
+    await category_command(update, context, "general")
 
 async def business(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await send_category(update, context, "Business OR Finance")
+    await category_command(update, context, "business")
 
 async def tech(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await send_category(update, context, "Technology")
+    await category_command(update, context, "technology")
 
 async def health(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await send_category(update, context, "Health")
+    await category_command(update, context, "healthcare")
 
-async def hindi(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await send_category(update, context, "India", lang="hi")
-
-# === Background Job to Send News to All Subscribers ===
+# === Scheduled News ===
 def run_news_job():
-    for user_id in subscribed_users:  # Or replace with Redis logic if used
+    for user_id in subscribed_users:
         print(f"🚀 Sending fresh news to {user_id}")
-        send_news(user_id, "India OR World OR Breaking News")
+        send_news(user_id)
         time.sleep(1)
 
 def schedule_runner():
-    run_news_job()  # Run once immediately
-    schedule.every(10).minutes.do(run_news_job)  # Run every 10 minutes
+    run_news_job()  # First run immediately
+    schedule.every(10).minutes.do(run_news_job)
     while True:
         schedule.run_pending()
         time.sleep(10)
 
-
-# === Bot Main Function ===
+# === Main Bot Init ===
 def main():
     if not BOT_TOKEN or not NEWSAPI_KEY:
         raise ValueError("Missing BOT_TOKEN or NEWSAPI_KEY")
@@ -165,14 +161,10 @@ def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("india", india))
-    app.add_handler(CommandHandler("world", world))
-    app.add_handler(CommandHandler("sports", sports))
     app.add_handler(CommandHandler("business", business))
     app.add_handler(CommandHandler("tech", tech))
     app.add_handler(CommandHandler("health", health))
-    app.add_handler(CommandHandler("hindi", hindi))
 
-    # Start background scheduler thread
     thread = threading.Thread(target=schedule_runner)
     thread.daemon = True
     thread.start()
