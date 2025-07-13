@@ -7,6 +7,9 @@ import redis
 from datetime import datetime, timezone, timedelta
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # === ENV VARIABLES ===
 BOT_TOKEN = os.getenv("BOT_TOKEN")
