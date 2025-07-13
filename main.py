@@ -1,15 +1,20 @@
 import os
 import requests
-from datetime import datetime, timedelta
 import time
 import math
 import schedule
+import threading
+from datetime import datetime, timedelta
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # === ENV VARIABLES ===
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+# CHAT_ID no longer needed globally; we'll use dynamic user_id
+subscribed_users = set()
 
+# === NIFTY 200 SYMBOLS ===
 # === NIFTY 200 SYMBOLS ===
 nifty_200_symbols = [
     "3MINDIA.NS", "AARTIIND.NS", "ABB.NS", "ACC.NS", "ADANIENT.NS", "ADANIGREEN.NS", "ADANIPORTS.NS", "ADANIPOWER.NS",
@@ -35,18 +40,17 @@ nifty_200_symbols = [
     "TATASTEEL.NS", "TCS.NS", "TECHM.NS", "TITAN.NS", "TORNTPHARM.NS", "TORNTPOWER.NS", "TRENT.NS", "TVSMOTOR.NS", "UBL.NS",
     "ULTRACEMCO.NS", "UNIONBANK.NS", "UPL.NS", "VBL.NS", "VEDL.NS", "VOLTAS.NS", "WHIRLPOOL.NS", "WIPRO.NS", "ZEEL.NS",
     "ZYDUSLIFE.NS"
-]
-    # ... rest of your list
+]  # Short for testing; use full list in production
 
-
+# === Utilities ===
 def get_date_strings():
     today = datetime.now().date()
     return str(today - timedelta(days=1)), str(today)
 
-def send_to_telegram(text):
+def send_to_telegram(text, chat_id):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {
-        "chat_id": CHAT_ID,
+        "chat_id": chat_id,
         "text": text,
         "parse_mode": "HTML",
         "disable_web_page_preview": True
@@ -58,8 +62,7 @@ def send_to_telegram(text):
     except Exception as e:
         print(f"❌ Telegram exception: {e}")
 
-def fetch_and_send_news(symbol, from_str, to_str):
-    print(f"📡 Fetching news for {symbol}")
+def fetch_and_send_news(symbol, from_str, to_str, chat_id):
     url = "https://finnhub.io/api/v1/company-news"
     params = {
         'symbol': symbol,
@@ -72,38 +75,59 @@ def fetch_and_send_news(symbol, from_str, to_str):
         news_items = res.json()
         if isinstance(news_items, list) and len(news_items) > 0:
             msg = f"<b>{symbol}</b>\n"
-            for item in news_items[:2]:
+            for item in news_items[:1]:  # 1 news item per symbol
                 dt = datetime.fromtimestamp(item['datetime']).strftime('%d %b %Y %I:%M %p')
                 msg += f"📰 <b>{item['headline']}</b>\n🕒 {dt}\n🔗 <a href='{item['url']}'>Read More</a>\n\n"
-            send_to_telegram(msg)
-            time.sleep(1.2)
-        else:
-            print(f"⚠️ No news found for {symbol}")
+            send_to_telegram(msg, chat_id)
+            time.sleep(1)
     except Exception as e:
-        print(f"❌ Error fetching news for {symbol}: {e}")
+        print(f"❌ Error fetching news for {symbol} to {chat_id}: {e}")
 
+# === Telegram Command Handlers ===
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_chat.id
+    if user_id not in subscribed_users:
+        subscribed_users.add(user_id)
+        await context.bot.send_message(chat_id=user_id, text="📡 Welcome! You've subscribed to Nifty 200 stock news.")
+        await send_latest_news_to_user(user_id)
+    else:
+        await context.bot.send_message(chat_id=user_id, text="✅ You're already subscribed.")
+
+async def send_latest_news_to_user(user_id):
+    from_str, to_str = get_date_strings()
+    for symbol in nifty_200_symbols[:5]:  # Send news from top 5 stocks
+        fetch_and_send_news(symbol, from_str, to_str, user_id)
+
+# === Background Job ===
 def run_news_job():
     from_str, to_str = get_date_strings()
-    batch_size = 50
-    total_batches = math.ceil(len(nifty_200_symbols) / batch_size)
+    for user_id in subscribed_users:
+        print(f"🚀 Sending news to user {user_id}")
+        for symbol in nifty_200_symbols[:5]:  # Control volume
+            fetch_and_send_news(symbol, from_str, to_str, user_id)
+        time.sleep(1)
 
-    for batch in range(total_batches):
-        start = batch * batch_size
-        end = min((batch + 1) * batch_size, len(nifty_200_symbols))
-        current_batch = nifty_200_symbols[start:end]
-        print(f"\n🚀 Batch {batch+1}/{total_batches} | Symbols {start + 1} to {end}")
-        for symbol in current_batch:
-            fetch_and_send_news(symbol, from_str, to_str)
-        if batch < total_batches - 1:
-            print("⏸️ Waiting 60 seconds before next batch...")
-            time.sleep(60)
+def schedule_runner():
+    schedule.every(10).minutes.do(run_news_job)
+    while True:
+        schedule.run_pending()
+        time.sleep(10)
 
-# ✅ Schedule every 10 minutes
-schedule.every(10).minutes.do(run_news_job)
+# === Run Bot ===
+def main():
+    if not FINNHUB_API_KEY or not BOT_TOKEN:
+        raise ValueError("Missing FINNHUB_API_KEY or BOT_TOKEN environment variable.")
 
-print("✅ Bot is running and will send news every 10 minutes...\n⏳ First run now...\n")
-run_news_job()
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
 
-while True:
-    schedule.run_pending()
-    time.sleep(10)
+    # Start scheduler in background thread
+    thread = threading.Thread(target=schedule_runner)
+    thread.daemon = True
+    thread.start()
+
+    print("✅ Bot started. Listening for /start and sending news...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
