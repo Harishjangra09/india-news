@@ -4,7 +4,7 @@ import requests
 import time
 import schedule
 import threading
-from datetime import timezone
+from datetime import datetime, timezone
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from dotenv import load_dotenv
