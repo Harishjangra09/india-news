@@ -48,34 +48,22 @@ def send_to_telegram(text, chat_id):
         print(f"❌ Telegram exception: {e}")
 
 # === News Fetching ===
-def fetch_news(query, lang="en"):
+def fetch_news(query=None, lang="en"):
     try:
-        now = datetime.now(timezone.utc)
-        from_time = now - timedelta(hours=24)
-        from_str = from_time.isoformat()
-
-        url = (
-            f"https://newsapi.org/v2/everything?"
-            f"q={query}&"
-            f"from={from_str}&"
-            f"language={lang}&"
-            f"pageSize=5&"
-            f"sortBy=publishedAt&"
-            f"apiKey={NEWSAPI_KEY}"
-        )
-
+        url = f"https://finnhub.io/api/v1/news?category=general&token={NEWSAPI_KEY}"
         res = requests.get(url)
         data = res.json()
 
-        if data.get("status") != "ok":
-            print("❌ NewsAPI error:", data)
+        if not isinstance(data, list):
+            print("❌ Finnhub error:", data)
             return []
 
-        return data.get("articles", [])
+        return data[:5]  # return top 5 news
 
     except Exception as e:
         print(f"❌ Error fetching news: {e}")
         return []
+
 
 # === Send News to User ===
 def send_news(chat_id, query, lang="en"):
